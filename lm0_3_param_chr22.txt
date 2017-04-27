@@ -1,0 +1,1 @@
+lm0_3mo_launchregressions042617test.R ExomeGWAS_chr22all.bdosemaftest
