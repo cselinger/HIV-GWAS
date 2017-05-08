@@ -11,17 +11,10 @@ options(scipen=100)
 library(lmerTest)
 options(ddf="lme4")
 library(pbkrtest)
+library(data.table)
 
-# lmer gives "t-values", but df not obviously defined, so for now pretend they are z-values to get p-values
-z2p <- function(z){
-  p <- 2*pnorm((-1)*abs(z) )
-  return(p)
-}
+KenwardRoger=F#don't use KR approximation of df
 
-z2pv <- function(zv){
-  ret <- sapply(zv, z2p)
-  return(ret)
-}
 
 lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=1000, counters=T){
   infilename <- paste(indir, genofileRootName, sep="")
@@ -58,6 +51,9 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
          geno <- bdoses[phenoUse$genoOrder]
          regData <- cbind(phenoUse, geno=geno, stringsAsFactors=F)
          
+         regData<-data.table(regData)##need to install and load package data.table
+         regData[,sqrtcd4base:=na.omit(sqrtcd4base),by='id']#otherwise regData will be empty when removing incomplete rows
+         
        #regData <- regData[regData$treatdays >= maxTreatDays,]  # use this if want to only want to look at 1 year and after for regression as per Peter's suggestion 
 
        incomplete <- with(regData,
@@ -78,38 +74,26 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
                    na.action=na.omit, REML=F,
                    data=regData[!incomplete & regData$cohort=="UARTO",] );
 
-            lmod <- as.numeric(logLik(mod) )
-            #coefs <- summary(mod, type=2, ddf="Kenward-Roger")$coef
-            coefs <- summary(mod)$coef
-            
-            coefsSmall <- coefs[grepl("geno", row.names(coefs) ) , ]
-            coefsSmall <- as.matrix(coefsSmall)    
+       coefs <- summary(mod)$coef
+       coefs <- coefs[grepl("geno", rownames(coefs) ) , ]; foo<-rownames(coefs)
+       coefs <- data.table(coefs);coefs$covariate=foo
+       if (KenwardRoger==T){
+         coefs$df.KR<-get_ddf_Lb(mod,fixef(mod))
+         coefs[,pval.KR:=2*(1-pt(abs(get('t value')),df.KR))]
+       }
+
             
          # new
          # if there is only 1 genetic term, the previous line returns a vector of coefficients without row names
          # rather than a matrix with row names
-         if(( class(coefsSmall) != "matrix") && (ngeneticTerms == 1) ){
-           coefsSmall <- t(as.matrix(coefsSmall))
-           row.names(coefsSmall) <- c("geno")
+         if(( class(coefs) != "matrix") && (ngeneticTerms == 1) ){
+           coefs <- t(as.matrix(coefs))
+           row.names(coefs) <- c("geno")
          }
-            print(coefsSmall)
+            print(coefs)
             # end new
 
-         pvalsSmall <- z2pv(coefsSmall[,3])  # convert t-values to p-values (normal approx)
-       
-         basemod <- lmerTest::lmer(sqrtcd4art ~  (1 | id) + timeint90 + timeint90365 + timeint365plus 
-                     + age + timeint90:age + timeint90365:age + timeint365plus:age 
-                     + factor(sex) + timeint90:factor(sex) + timeint90365:factor(sex) + timeint365plus:factor(sex)
-                     + sqrtcd4base + timeint90:sqrtcd4base + timeint90365:sqrtcd4base + timeint365plus:sqrtcd4base
-                     + pca1 + pca2 + pca3 + pca4 + pca5 
-                     + pca6 + pca7 + pca8 + pca9 + pca10,
-                     na.action=na.omit, REML=F,
-                     data=regData[!incomplete & regData$cohort=="UARTO",] );
-         
-        lbasemod <- as.numeric(logLik(basemod) )
-#        anovapval <- anova(basemod, mod)[2,7]
-
-results <- c(lmod, lbasemod, nrow(coefsSmall), row.names(coefsSmall), t(coefsSmall))
+results <- c(nrow(coefs), coefs)
        })
        resultsLine <- c(bdosemafHeader, results)
        outline <- paste(resultsLine, sep="", collapse=",")
