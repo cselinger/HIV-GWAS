@@ -121,5 +121,5 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
   close(infile)
   close(outfile)
   
-  save(NAMES,file=paste(outdir, genofileRootName, ".lme_regressions.NAMES", sep=""))
+  save(NAMES,file=paste(outdir, genofileRootName, ".lme_regressions.NAMES.Rdata", sep=""))
 }
