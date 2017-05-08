@@ -13,7 +13,7 @@ options(ddf="lme4")
 library(pbkrtest)
 library(data.table)
 
-KenwardRoger=F#don't use KR approximation of df
+KenwardRoger=F#if F, don't use KR approximation of df
 
 
 lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=1000, counters=T){
@@ -38,7 +38,7 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
      if(nr == 0){done <- T; break()}
      infields <- sapply(inblock, strsplit, " ")
 
-     #   i = 1
+     #i = 1
      for(i in 1:nr){
        fields <- infields[[i]]              
        bdosemafHeader <- fields[1:lengthbdoseheader]
@@ -77,9 +77,10 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
        coefs <- summary(mod)$coef
        coefs <- coefs[grepl("geno", rownames(coefs) ) , ]; foo<-rownames(coefs)
        coefs <- data.table(coefs);coefs$covariate=foo
+       colnames(coefs)[grep('Pr(>|t|)',colnames(coefs))] <- 'pvalSW'
        if (KenwardRoger==T){
-         coefs$df.KR<-get_ddf_Lb(mod,fixef(mod))
-         coefs[,pval.KR:=2*(1-pt(abs(get('t value')),df.KR))]
+         coefs$dfKR<-get_ddf_Lb(mod,fixef(mod))
+         coefs[,pvalKR:=2*(1-pt(abs(get('t value')),dfKR))]
        }
 
             
@@ -93,9 +94,19 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
             print(coefs)
             # end new
 
-results <- c(nrow(coefs), coefs)
        })
-       resultsLine <- c(bdosemafHeader, results)
+       ##write CHR SNP BP PvaluesOfGeno
+       resultsLine <- c(bdosemafHeader[c(3,4,5)], as.numeric(unlist(coefs[,grep('pval',colnames(coefs)),with=F])))
+       
+       ##here are the column names of the output for QQ and manhattan plot
+       NAMES<-NULL
+       for (j in grep('pval',colnames(coefs))){
+         NAMES<-c(NAMES,apply(cbind(coefs$covariate,colnames(coefs)[j]), 1, paste, collapse="_"))
+       }
+       NAMES<-c('CHR','SNP','BP',NAMES)
+       
+       
+       
        outline <- paste(resultsLine, sep="", collapse=",")
        outlines <- c(outlines,outline )
        
@@ -109,4 +120,6 @@ results <- c(nrow(coefs), coefs)
   
   close(infile)
   close(outfile)
+  
+  save(NAMES,file=paste(outdir, genofileRootName, ".lme_regressions.NAMES", sep=""))
 }
