@@ -38,7 +38,7 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
      if(nr == 0){done <- T; break()}
      infields <- sapply(inblock, strsplit, " ")
 
-     #i = 1
+     i = 1
      for(i in 1:nr){
        fields <- infields[[i]]              
        bdosemafHeader <- fields[1:lengthbdoseheader]
@@ -47,7 +47,7 @@ lmeregressions <- function(phenoUse, indir, genofileRootName, outdir, blocksize=
        results <- rep("", 3+1+5*ngeneticTerms)
        
        try({
-         bdoses <- as.numeric(fields[(lengthbdoseheader+1):length(fields)] )
+         bdoses <- as.numeric(fields[(lengthbdoseheader+1):length(fields)] ) ###should take baf column, should be column #19
          geno <- bdoses[phenoUse$genoOrder]
          regData <- cbind(phenoUse, geno=geno, stringsAsFactors=F)
          
